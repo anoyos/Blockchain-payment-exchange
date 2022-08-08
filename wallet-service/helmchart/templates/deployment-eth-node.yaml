@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helmchart.fullname" . }}-eth
+  annotations:
+    rollme: {{ randAlphaNum 5 | quote }}
+  labels:
+    helm.sh/chart: {{ include "helmchart.chart" . }}
+    app.kubernetes.io/name: {{ include "helmchart.name" . }}-eth
+    app.kubernetes.io/instance: {{ .Release.Name }}-eth
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "helmchart.name" . }}-eth
+      app.kubernetes.io/instance: {{ .Release.Name }}-eth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "helmchart.name" . }}-eth
+        app.kubernetes.io/instance: {{ .Release.Name }}-eth
+    spec:
+
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "helmchart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      volumes:
+        - name: pv-storage
+          persistentVolumeClaim:
+            claimName: eth-pv-claim-big
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "ethereum/client-go:stable"
+          args: ['--rinkeby',
+                 '--syncmode', 'light',
+                 '--http',
+                 '--http.addr','0.0.0.0',
+                 '--allow-insecure-unlock',
+                 '--http.vhosts','*',
+                 '--datadir','/geth',
+                 '--http.api','personal,eth,net,web3',
+                 '--http.corsdomain','*']
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+            - mountPath: "/geth"
+              name: pv-storage
+          ports:
+            - name: http
+              containerPort: 8545
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: "/"
+              port: http
+          readinessProbe:
+            httpGet:
+              path: "/"
+              port: http
+          resources:
+            {{- toYaml .Values.resources_eth | nindent 12 }}
+
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

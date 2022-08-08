@@ -1,0 +1,157 @@
+# Default values for helmchart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: 551678202612.dkr.ecr.us-east-2.amazonaws.com/wallet-service
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: "regcred"
+
+nameOverride: "wallet-service"
+fullnameOverride: "wallet-service"
+
+environments:
+  - name: "API_V1_STR"
+    value: "/api/v1/currency"
+  - name: "PROJECT_NAME"
+    value: "wallet-service"
+  - name: "MONGODB_URL"
+    value: "10.12.152.14:27017"
+  - name: "MONGODB_NAME"
+    value: "wallets"
+  - name: "AUTH_SERVICE_URL"
+    value: "https://bullflag.com/api/v1/user"
+  - name: "BALANCE_SERVICE_URL"
+    value: "https://bullflag.com/api/v1/balance"
+  - name: "MARKET_SERVICE_URL"
+    value: "https://bullflag.com/api/v1/market"
+  - name: "ASSET_CONFIG_PATH"
+    value: "/app/config/assets.json"
+  - name: "USDT_ABI_PATH"
+    value: "/app/config/abi/usdt.json"
+  # Ethereum chain settings (Rinkeby)
+  - name: "RPC_URL_ETH"
+    value: "https://rinkeby.infura.io/v3/ffe4471302f14290825ab5e828a017fa"
+  - name: "FACTORY_CONTRACT_ABI_PATH_ETH"
+    value: "/app/config/abi/factory.json"
+  - name: "FACTORY_CONTRACT_ADDRESS_ETH"
+    value: "0x5400f10e3ac3d13aA72b3C4f2Db42328cD61df2e"
+  - name: "COLLECTOR_ACCOUNT_ETH"
+    value: "0xF9997CB792634ff814173889371F723E4729e983"
+  # Ethereum chain settings (Ropsten)
+  - name: "RPC_URL_ROPSTEN"
+    value: "https://ropsten.infura.io/v3/ffe4471302f14290825ab5e828a017fa"
+  - name: "FACTORY_CONTRACT_ABI_PATH_ROPSTEN"
+    value: "/app/config/abi/factory.json"
+  - name: "FACTORY_CONTRACT_ADDRESS_ROPSTEN"
+    value: "0xCc225E5A6ad35DC52136f3ACb91C038f9f7cfCEb"
+  - name: "COLLECTOR_ACCOUNT_ROPSTEN"
+    value: "0xF9997CB792634ff814173889371F723E4729e983"
+  # BSC chain settings
+  - name: "RPC_URL_BSC"
+    value: "https://data-seed-prebsc-1-s1.binance.org:8545"
+  - name: "FACTORY_CONTRACT_ABI_PATH_BSC"
+    value: "/app/config/abi/factory.json"
+  - name: "FACTORY_CONTRACT_ADDRESS_BSC"
+    value: "0xC48a5a3112b3C512394D36d2D02Fe090D2B69046"
+  - name: "COLLECTOR_ACCOUNT_BSC"
+    value: "0xC5872608aCd67987Ac52BEf8E3d602757585eF78"
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+deployment:
+  livenessProbe:
+    path: '/api/v1/currency/health'
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_clear_headers "location";
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: bullflag.com
+      paths: ['/api/v1/currency']
+    - host: beta.bullflag.com
+      paths: [ '/api/v1/currency' ]
+    - host: dev.bullflag.com
+      paths: [ '/api/v1/currency' ]
+  tls:
+    - secretName: wildcard-bullflag-cert
+      hosts:
+        - bullflag.com
+        - "*.bullflag.com"
+
+resources: {}
+resources_eth:
+  limits:
+    cpu: 2000m
+    memory: 4096Mi
+  requests:
+    cpu: 1000m
+    memory: 1024Mi
+
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 100Gi
+
+affinity: {}
+# Example:
+# affinity:
+#    nodeAffinity:
+#      requiredDuringSchedulingIgnoredDuringExecution:
+#        nodeSelectorTerms:
+#          - matchExpressions:
+#              - key: beta.kubernetes.io/instance-type
+#                operator: In
+#                values:
+#                  - t3.small
+

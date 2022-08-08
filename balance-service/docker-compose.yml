@@ -1,0 +1,49 @@
+version: "3.3"
+
+services:
+  mongo_db:
+    image: mongo
+    env_file:
+      - .env
+    volumes:
+      - mongo-data:/data/db
+      - './scripts/create_db_user_test.js:/docker-entrypoint-initdb.d/create_db_user_test.js'
+    ports:
+      - 27017:27017
+  celeryworker:
+    image: 'balance-service:latest'
+    command: ['celery','-A', 'app.worker', 'worker', '-E', '--loglevel=DEBUG']
+    env_file:
+      - .env
+    build:
+      context: ./
+      dockerfile: Dockerfile
+
+
+  backend:
+    image: 'balance-service:latest'
+    depends_on:
+      - mongo_db
+    env_file:
+      - .env
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+    - 8020:80
+  redis:
+    image: "redis:alpine"
+    ports:
+      - 6379:6379
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: qwe123
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+volumes:
+  mongo-data:

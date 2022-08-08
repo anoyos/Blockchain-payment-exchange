@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "balance-service"
+version = "0.1.1"
+description = ""
+authors = ["Ilya Davydov <razzor58@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+uvicorn = ">=0.12.0,<0.14.0"
+api-contrib = {git = "git@github.com:pymnts-exchange/api_contrib.git", branch="main"}
+celery = {extras = ["redis"], version = "^5.0.5"}
+prometheus-client = "^0.10.1"
+simplejson = "^3.17.2"
+pytest-dotenv = "^0.5.2"
+pytest-cov = "^3.0.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.3"
+pytest-cov = "^3.0.0"
+pytest-dotenv = "^0.5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+#[tool.pytest.ini_options]
+#env_files = [
+#    "../.env",
+##    ".env.local",
+#]

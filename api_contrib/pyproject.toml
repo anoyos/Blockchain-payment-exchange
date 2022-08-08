@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "api_contrib"
+version = "0.1.0"
+description = "Common tools for FastAPI services"
+authors = ["pizzapatrik"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+fastapi = "^0.63.0"
+motor = "^2.3.1"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

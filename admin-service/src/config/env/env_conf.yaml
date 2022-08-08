@@ -1,0 +1,11 @@
+app:
+  redis_user:
+  redis_host: redis-master
+  redis_port: 6379
+  key_6: key6
+  secret_key: asdf123
+  token_valid_seconds: 3600
+  token_queue: systemtest-token-queue
+  flask_conf:
+    http_port: 5007
+    SECRET_KEY: secret_key

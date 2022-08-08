@@ -1,0 +1,14 @@
+*.retry
+*.pyc
+*.log
+__pycache__
+venv
+logs/
+.vscode/*
+.idea/
+vault/
+.env
+.env.test
+.env.docker
+.env.local
+docker-compose-local.yml

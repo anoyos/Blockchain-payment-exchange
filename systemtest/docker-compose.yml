@@ -1,0 +1,353 @@
+version: '3.8'
+services:
+
+  ### BACKENDS ###
+
+  redis-master:
+    image: bitnami/redis:6.0.9-debian-10-r33
+    ports:
+      - 6379:6379
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=my_master_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - 'bf_redis_master:/bitnami'
+
+  redis-replica:
+    image: bitnami/redis:6.0.9-debian-10-r33
+    ports:
+      - 6380:6379
+    depends_on:
+      - redis-master
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_PORT_NUMBER=6379
+      - REDIS_MASTER_PASSWORD=my_master_password
+      - REDIS_PASSWORD=my_replica_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  mongodb-primary:
+    image: bitnami/mongodb:4.4.2-debian-10-r8
+    environment:
+      - MONGODB_USERNAME=bf_user
+      - MONGODB_PASSWORD=password123
+      - MONGODB_DATABASE=bf_database
+      - MONGODB_ROOT_PASSWORD=root_password123
+      - MONGODB_REPLICA_SET_MODE=primary
+      - MONGODB_ADVERTISED_HOSTNAME=mongodb-primary
+      - MONGODB_REPLICA_SET_KEY=replicasetkey123
+      - MONGODB_REPLICA_SET_NAME=rs0
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo --host 127.0.0.1 --port 27017 -u root -p root_password123 --authenticationDatabase admin
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    expose:
+      - 27017
+    ports:
+      - 27017:27017
+    restart: always
+    volumes:
+      - 'mongodb_master_data:/bitnami'
+
+  mongodb-secondary:
+    image: bitnami/mongodb:4.4.2-debian-10-r8
+    environment:
+      - MONGODB_PORT_NUMBER=27018
+      - MONGODB_REPLICA_SET_MODE=secondary
+      - MONGODB_ADVERTISED_HOSTNAME=mongodb-secondary
+      - MONGODB_INITIAL_PRIMARY_HOST=mongodb-primary
+      - MONGODB_INITIAL_PRIMARY_PORT_NUMBER=27017
+      - MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD=root_password123
+      - MONGODB_REPLICA_SET_KEY=replicasetkey123
+      - MONGODB_REPLICA_SET_NAME=rs0
+    expose:
+      - 27018
+    ports:
+      - 27018:27018
+    restart: always
+    depends_on:
+      - mongodb-primary
+
+  mongodb-arbiter:
+    image: bitnami/mongodb:4.4.2-debian-10-r8
+    depends_on:
+      - mongodb-primary
+    environment:
+      - MONGODB_ADVERTISED_HOSTNAME=mongodb-arbiter
+      - MONGODB_REPLICA_SET_MODE=arbiter
+      - MONGODB_INITIAL_PRIMARY_HOST=mongodb-primary
+      - MONGODB_INITIAL_PRIMARY_PORT_NUMBER=27017
+      - MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD=root_password123
+      - MONGODB_REPLICA_SET_KEY=replicasetkey123
+      - MONGODB_REPLICA_SET_NAME=rs0
+
+  rabbitmq:
+    image: rabbitmq:3.8.8-management
+    ports:
+      - 15672:15672
+      - 5672:5672
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 60s
+
+  mysql-master:
+    image: bitnami/mysql:8.0.22-debian-10-r42
+    ports:
+      - 3306:3306
+    volumes:
+      - "bf_mysql:/bitnami/mysql/data"
+    environment:
+      - MYSQL_REPLICATION_MODE=master
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_REPLICATION_USER=repl_user
+      - MYSQL_REPLICATION_PASSWORD=repl_password
+      - MYSQL_ROOT_PASSWORD=master_root_password
+      - MYSQL_USER=my_user
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=auth
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+
+  mysql-slave:
+    image: bitnami/mysql:8.0.22-debian-10-r42
+    ports:
+      - 3307:3306
+    depends_on:
+      - mysql-master
+    environment:
+      - MYSQL_REPLICATION_MODE=slave
+      - MYSQL_REPLICATION_USER=repl_user
+      - MYSQL_REPLICATION_PASSWORD=repl_password
+      - MYSQL_MASTER_HOST=mysql-master
+      - MYSQL_MASTER_PORT_NUMBER=3306
+      - MYSQL_MASTER_ROOT_PASSWORD=master_root_password
+
+  mock_blockchain:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/mock-blockchain:latest
+    ports:
+      - 18332:18332
+
+  reverse-proxy:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/nginx-local:latest
+    ports:
+      - 8081:80
+    depends_on:
+      - auth-service
+      - market-service
+      - wallet-service
+
+
+  ### APPS ###
+  web-app:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/web-app:latest
+    ports:
+      - 3000:3000
+    volumes:
+      - ${PWD}/resources/webapp-env-file:/usr/src/web-app/.env
+
+  admin-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/admin-service:latest
+    ports:
+      - 5007:5000
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+  auth-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/auth-service:latest
+    ports:
+      - 5000:5000
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - MYSQL_PASS=password
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mysql-master
+
+  balance-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/balance-connector:latest
+    environment:
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mongodb-primary
+
+  balance-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/balance-service:latest
+    ports:
+      - 5003:5000
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mysql-master
+
+  blockchain-router:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/blockchain-router:latest
+    environment:
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mongodb-primary
+
+  email-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/email-connector:latest
+    environment:
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+  market-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/market-connector:latest
+    environment:
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mongodb-primary
+
+  market-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/market-service:latest
+    ports:
+      - 5005:5000
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+  token-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/token-connector:latest
+    environment:
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+  trollbox-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/trollbox-service:latest
+    ports:
+      - 5010:5000
+    environment:
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+  trollbox-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/trollbox-connector:latest
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mongodb-primary
+
+  wallet-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/wallet-connector:latest
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mongodb-primary
+
+  wallet-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/wallet-service:latest
+    ports:
+      - 5002:5000
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+
+  websocket-connector:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/websocket-connector:latest
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - IMAGE_TAG=latest
+      - REDIS_PASS=my_master_password
+    depends_on:
+      - rabbitmq
+      - redis-master
+      - mongodb-primary
+
+  websocket-service:
+    image: 551678202612.dkr.ecr.us-east-2.amazonaws.com/websocket-service:latest
+    ports:
+      - 5001:5000
+    environment:
+      - FLASK_DEBUG=1
+      - APP_CONFIG=systemtest
+      - REDIS_PASS=my_master_password
+      - WEBSOCKET_ASYNC_MODE=gevent_uwsgi
+    depends_on:
+      - rabbitmq
+      - redis-master
+
+volumes:
+  bf_mysql:
+    driver: local
+    name: bf_mysql
+  mongodb_master_data:
+    driver: local
+  bf_redis_master:
+    driver: local
+    name: bf_redis_master

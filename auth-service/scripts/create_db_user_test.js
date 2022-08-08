@@ -1,0 +1,1 @@
+db.getSiblingDB('auth').createUser({user: 'app', pwd: 'qwe123', roles: ['readWrite']})

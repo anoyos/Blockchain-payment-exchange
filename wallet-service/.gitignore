@@ -1,0 +1,14 @@
+*.retry
+*.pyc
+*.log
+__pycache__
+venv
+logs/
+.vscode/*
+.idea/
+vault/
+.env
+.run/
+celerybeat-schedule.db
+.coverage
+.github_token

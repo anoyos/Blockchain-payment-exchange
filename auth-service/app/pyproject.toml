@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "auth-service"
+version = "0.1.0"
+description = ""
+authors = ["Ilya Davydov <razzor58@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+uvicorn = ">=0.12.0,<0.14.0"
+api-contrib = {git = "git@github.com:pymnts-exchange/api_contrib.git", branch="main"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-jose = {extras = ["cryptography"], version = "^3.2.0"}
+pydantic = {extras = ["email"], version = "^1.8.1"}
+python-multipart = "^0.0.5"
+emails = "^0.6"
+Jinja2 = "^2.11.3"
+celery = "^5.0.5"
+redis = "^3.5.3"
+pycountry = "^20.7.3"
+aiofiles = "^0.6.0"
+pytest = "^6.2.4"
+user-agents = "^2.2.0"
+twilio = "^6.63.0"
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

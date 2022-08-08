@@ -1,0 +1,5 @@
+app:
+  name: admin-service
+  redis_mq_backend_db: 15
+  redis_healthcheck_db: 13
+  redis_token_db: 8

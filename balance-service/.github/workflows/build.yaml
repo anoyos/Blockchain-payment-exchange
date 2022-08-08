@@ -1,0 +1,81 @@
+on:
+  push:
+    branches:
+      - master
+      - develop
+
+name: Build & Deploy
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.CI_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.CI_SECRET }}
+        aws-region: us-east-2
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build docker
+      id: build-docker
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        SSH_PRV_KEY: ${{ secrets.SSH_PRV_KEY }}
+      run: |
+        export app_name="${{ github.event.repository.name }}"
+
+        docker build \
+        --build-arg SSH_PRV_KEY="$SSH_PRV_KEY" \
+        -t ${app_name}:latest .
+
+        export img=$(docker images ${app_name}:latest -q)
+        docker tag ${img} ${ECR_REGISTRY}/${app_name}:latest
+        docker push ${ECR_REGISTRY}/${app_name}:latest
+        echo "${app_name}:latest pushed to ECR"
+
+  deployment:
+    name: Deploy on EKS
+    runs-on: 'ubuntu-latest'
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.CI_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.CI_SECRET }}
+          aws-region: us-east-2
+
+      - name: Remove Previos Helm3 Chart
+        uses: deliverybot/helm@v1
+        with:
+          release: balance
+          namespace: prod
+          task: remove
+          chart: ./helmchart
+          helm: helm3
+        env:
+          KUBECONFIG_FILE: '${{ secrets.KUBECONFIG }}'
+
+      - name: Install Helm3 Chart
+        uses: deliverybot/helm@v1
+        with:
+          release: balance
+          namespace: prod
+          chart: ./helmchart
+          value-files: "./helmchart/values.prod.yaml"
+          helm: helm3
+        env:
+          KUBECONFIG_FILE: '${{ secrets.KUBECONFIG }}'

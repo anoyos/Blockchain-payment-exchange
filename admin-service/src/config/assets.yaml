@@ -1,0 +1,16 @@
+assets:
+  - id: 1
+    short_name: BTC
+    long_name: Bitcoin
+    is_base_asset: true
+    decimal_precision: 8
+  - id: 2
+    short_name: DOGE
+    long_name: Dogecoin
+    is_base_asset: false
+    decimal_precision: 6
+  - id: 3
+    short_name: MLN
+    long_name: Melonhead Protocol
+    is_base_asset: false
+    decimal_precision: 8

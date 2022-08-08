@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helmchart.fullname" . }}-worker-blockchain
+  annotations:
+    rollme: {{ randAlphaNum 5 | quote }}
+  labels:
+    helm.sh/chart: {{ include "helmchart.chart" . }}
+    app.kubernetes.io/name: {{ include "helmchart.name" . }}-worker-blockchain
+    app.kubernetes.io/instance: {{ .Release.Name }}-worker-blockchain
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "helmchart.name" . }}-worker-blockchain
+      app.kubernetes.io/instance: {{ .Release.Name }}-worker-blockchain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "helmchart.name" . }}-worker-blockchain
+        app.kubernetes.io/instance: {{ .Release.Name }}-worker-blockchain
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "helmchart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+          command: ['celery','-A', 'app.worker', 'worker', '-E', '--loglevel=DEBUG', '--queues=blockchain']
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.deployment.livenessProbe.path | default "/" }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.deployment.livenessProbe.path | default "/" }}
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            {{- range .Values.environments }}
+            - name: {{ .name }}
+              value: {{ .value }}
+            {{- end }}
+            - name: IS_CELERY_WORKER
+              value: "true"
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: celery
+                  key: broker_url
+
+            - name: CELERY_BACKEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: celery
+                  key: backend_url
+
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-user
+
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-password
+
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-root-password
+
+            - name: MQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-creds
+                  key: rabbitmq-user
+
+            - name: MQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-creds
+                  key: rabbitmq-password
+      volumes:
+      - name: config-volume
+        configMap:
+          name: asset-configmap
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

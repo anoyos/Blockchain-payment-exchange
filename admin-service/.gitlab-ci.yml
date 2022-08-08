@@ -1,0 +1,91 @@
+stages:
+  - build
+  - deploy
+
+# Set some ENV variables to use with the build.
+variables:
+  # Docker settings, version and such
+  # Set some info about container image and registry url
+  DOCKER_HOST: tcp://localhost:2375
+  DOCKER_VERSION: docker:19.03.6
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  #about the build..#
+  VERSION: ${CI_COMMIT_SHA}
+  REGISTRY: ${HARBOR_REGISTRY}/${HARBOR_PROJECT}
+  CONTAINER_IMAGE: ${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${CI_PROJECT_NAME}
+  DEPLOY_IMAGE: registry.micronova.se/wallets/docker-deploy:latest
+  
+  NAMESPACE: yasoshi-api
+  TEMPLATE_DEPLOYMENT: deployment_resourcespec_scaling.tpl.yml
+  TEMPLATE_SERVICE: backend_service.tpl.yml
+  TEMPLATE_PVC: backend_pvc.tpl.yml
+  FIRSTPORT: 5000
+  FIRSTPORTTARGET: 5000
+  SECONDPORT: 6000
+  SECONDPORTTARGET: 6000
+  LIMIT_CPUS: 2
+  LIMIT_RAM: 4Gi
+  REQUEST_CPUS: 250m
+  REQUEST_RAM: 500Mi
+  REPLICAS: 2
+
+# TEMPLATE BUILD THE DOCKER IMAGE
+.docker_build:   &docker_build
+  script:
+    - echo ${HARBOR_PASS} | docker login --username ghost --password-stdin ${HARBOR_REGISTRY}
+    - |
+      docker build \
+      --build-arg SSH_PRIVATE_KEY="$SSH_PRIVATE_KEY" \
+      --build-arg A_PRODUCT_NAME="$PRODUCT_NAME" \
+      --build-arg A_PRODUCT_ENV="$PRODUCT_ENV" \
+      --build-arg A_HTTP_PROXY="$HTTP_PROXY" \
+      --build-arg A_HTTPS_PROXY="$HTTPS_PROXY" \
+      -f deploy/Dockerfile \
+      -t ${CONTAINER_IMAGE} .
+    - docker tag ${CONTAINER_IMAGE} ${REGISTRY}/${CI_PROJECT_NAME}:${CI_COMMIT_REF_NAME}
+    - docker tag ${CONTAINER_IMAGE} ${REGISTRY}/${CI_PROJECT_NAME}:${CI_COMMIT_REF_NAME}_${VERSION}
+    - docker push ${CONTAINER_IMAGE}
+    - docker push ${CONTAINER_IMAGE}:${CI_COMMIT_REF_NAME}
+    - docker push ${CONTAINER_IMAGE}:${CI_COMMIT_REF_NAME}_${VERSION}
+    - docker images
+
+# TEMPLATE TO CREATE DEPLOYMENT AND MANAGE IT
+.template:   &template |
+  cp /proj/gitlab-cicd/templates/*.yml /proj/gitlab-cicd/todeploy
+  cd /proj/gitlab-cicd/todeploy/
+  sed -i "s|\_APP_NAME_|${CI_PROJECT_NAME}|g" ${TEMPLATE_DEPLOYMENT} ${TEMPLATE_PVC} ${TEMPLATE_SERVICE}
+  sed -i "s|\_IMAGE_|${REGISTRY}/${CI_PROJECT_NAME}:${CI_COMMIT_REF_NAME}_${VERSION}|g" ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_APP_PORT01_|${FIRSTPORT}|g" ${TEMPLATE_SERVICE}
+  sed -i "s|\_APP_TARGETPORT01_|${FIRSTPORTTARGET}|g" ${TEMPLATE_SERVICE} ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_APP_PORT02_|${SECONDPORT}|g" ${TEMPLATE_SERVICE}
+  sed -i "s|\_APP_TARGETPORT02_|${SECONDPORTTARGET}|g" ${TEMPLATE_SERVICE} ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_LIMIT_CPUS_|${LIMIT_CPUS}|g" ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_LIMIT_RAM_|${LIMIT_RAM}|g" ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_REQUEST_CPUS_|${REQUEST_CPUS}|g" ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_REQUEST_RAM_|${REQUEST_RAM}|g" ${TEMPLATE_DEPLOYMENT}
+  sed -i "s|\_REPLICAS_|${REPLICAS}|g" ${TEMPLATE_DEPLOYMENT}
+  
+.prod_deploy_kubectl:   &prod_deploy_kubectl |
+  cd /proj/gitlab-cicd/todeploy/
+  kubectl apply -f ${TEMPLATE_PVC} -n ${NAMESPACE} || true 
+  kubectl apply -f ${TEMPLATE_SERVICE} -n ${NAMESPACE} || true 
+  kubectl apply -f ${TEMPLATE_DEPLOYMENT} -n ${NAMESPACE}
+
+# BUILD
+build:
+  <<: *docker_build
+  stage: build
+  image: docker:latest
+  services:
+  - name: docker:dind
+
+# PROD
+deploy:
+  stage: deploy
+  image: ${DEPLOY_IMAGE}
+  services:
+  - name: docker:dind
+  script:
+    - *template
+    - *prod_deploy_kubectl

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+echo "Starting The Yasoshi Service..."
+
+cd /bullflag/app
+
+uwsgi -H venv \
+    --chdir=/bullflag/app/ \
+    --module=wsgi:app \
+    --master \
+    --http-socket=0.0.0.0:5000 \
+    --socket=0.0.0.0:6000 \
+    --harakiri=60 \
+    --max-requests=50000 \
+    --enable-threads \
+    --threads=1000 \
+    --vacuum \
+    --processes=4 \
+    --log-5xx \
+    --disable-logging

@@ -1,0 +1,40 @@
+version: "3.7"
+services:
+
+  mongo_db:
+    image: mongo
+    env_file:
+      - .env.local
+    volumes:
+      - mongo-data:/data/db
+      - ./scripts/test-mongo-init.js:/docker-entrypoint-initdb.d/test-mongo-init.js:ro
+    ports:
+      - 27017:27017
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: qwe123
+    ports:
+      - 5672:5672
+      - 15672:15672
+  redis:
+    image: "redis:alpine"
+    ports:
+      - 6379:6379
+#  app:
+#    image: '551678202612.dkr.ecr.us-east-2.amazonaws.com/market-service:latest'
+#    depends_on:
+#      - mongo_db
+#      - redis
+#    env_file:
+#      - .env.example
+#    build:
+#      context: ./
+#      dockerfile: Dockerfile
+#    ports:
+#    - 8030:80
+
+volumes:
+  mongo-data:

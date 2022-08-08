@@ -1,0 +1,8 @@
+bullflag-commons==0.0.70
+bullflag-connector-dummies==0.0.82
+celery==4.4.7
+dependency-injector==4.5.3
+Flask==1.1.2
+Flask-Mail==0.9.1
+Flask-RESTful==0.3.8
+PyYAML==5.3.1

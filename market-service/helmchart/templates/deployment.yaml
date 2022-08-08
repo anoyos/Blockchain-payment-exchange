@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helmchart.fullname" . }}
+  annotations:
+    rollme: {{ randAlphaNum 5 | quote }}
+  labels:
+    {{- include "helmchart.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "helmchart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "helmchart.selectorLabels" . | nindent 8 }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "helmchart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.deployment.livenessProbe.path | default "/" }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.deployment.livenessProbe.path | default "/" }}
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/
+          env:
+            {{- range .Values.environments }}
+            - name: {{ .name }}
+              value: {{ .value }}
+            {{- end }}
+            - name: REDIS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: redis-password-file
+                  key: redis-password
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-user
+
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-password
+
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-root-password
+
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: celery
+                  key: broker_url
+
+            - name: CELERY_BACKEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: celery
+                  key: backend_url
+
+            - name: MQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-creds
+                  key: rabbitmq-user
+
+            - name: MQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbit-creds
+                  key: rabbitmq-password
+
+            - name: CLUSTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-api-key
+                  key: token
+      volumes:
+      - name: config-volume
+        configMap:
+          name: asset-configmap
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

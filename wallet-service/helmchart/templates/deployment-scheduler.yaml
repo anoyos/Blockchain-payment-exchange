@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helmchart.fullname" . }}-scheduler
+  annotations:
+    rollme: {{ randAlphaNum 5 | quote }}
+  labels:
+    helm.sh/chart: {{ include "helmchart.chart" . }}
+    app.kubernetes.io/name: {{ include "helmchart.name" . }}-scheduler
+    app.kubernetes.io/instance: {{ .Release.Name }}-scheduler
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "helmchart.name" . }}-scheduler
+      app.kubernetes.io/instance: {{ .Release.Name }}-scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "helmchart.name" . }}-scheduler
+        app.kubernetes.io/instance: {{ .Release.Name }}-scheduler
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "helmchart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+          command: ['python', '/app/app/scheduler.py']
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.deployment.livenessProbe.path | default "/" }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.deployment.livenessProbe.path | default "/" }}
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/
+            - name: contract-api
+              mountPath: /app/config/abi
+          env:
+            {{- range .Values.environments }}
+            - name: {{ .name }}
+              value: {{ .value }}
+            {{- end }}
+            - name: FACTORY_OWNER_KEY_ETH
+              valueFrom:
+                secretKeyRef:
+                  name: factory.contract.owner.eth
+                  key: private-key
+            - name: FACTORY_OWNER_KEY_ROPSTEN
+              valueFrom:
+                secretKeyRef:
+                  name: factory.contract.owner.ropsten
+                  key: private-key
+
+            - name: FACTORY_OWNER_KEY_BSC
+              valueFrom:
+                secretKeyRef:
+                  name: factory.contract.owner.bsc
+                  key: private-key
+
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: celery
+                  key: broker_url
+
+            - name: CELERY_BACKEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: celery
+                  key: backend_url
+
+            - name: BITCOINLIB_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bitcoinlib
+                  key: db_url
+
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-user
+
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-password
+
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-creds
+                  key: mongodb-root-password
+      volumes:
+        - name: config-volume
+          configMap:
+            name: asset-configmap
+        - name: contract-api
+          configMap:
+            name: contract-api
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

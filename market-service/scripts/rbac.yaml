@@ -1,0 +1,22 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pods-api
+rules:
+- apiGroups: ["apps", ""]
+  resources: ["pods", "deployments"]
+  verbs: ["list", "patch", "read", "get"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pods-api-binding
+subjects:
+- kind: ServiceAccount
+  name: market-service
+  namespace: prod
+roleRef:
+  kind: ClusterRole
+  name: pods-api
+  apiGroup: rbac.authorization.k8s.io

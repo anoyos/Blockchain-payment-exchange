@@ -1,0 +1,62 @@
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Test scenario tags'
+
+name: Build
+
+jobs:
+  build:
+    name: Build docker
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.CI_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.CI_SECRET }}
+        aws-region: us-east-2
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Get pip access token
+      env:
+        DEV_AWS_ACCOUNT: ${{ secrets.DEV_AWS_ACCOUNT }}
+      run: |
+        CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain pypi-repo --domain-owner ${DEV_AWS_ACCOUNT} --query authorizationToken --output text)
+        echo "CODEARTIFACT_AUTH_TOKEN=${CODEARTIFACT_AUTH_TOKEN}" >> $GITHUB_ENV
+
+    - name: Build docker
+      id: build-docker
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        export app_name="${{ github.event.repository.name }}"
+        export ts=$(date +%Y%m%d%H%M%S)
+        export rev=${GITHUB_SHA:0:7}
+        export image_tag="${ts}-${rev}"
+
+        docker build \
+        --build-arg CODEARTIFACT_TOKEN=${CODEARTIFACT_AUTH_TOKEN} \
+        --build-arg IMAGE_TAG=${image_tag} \
+        -t ${app_name}:latest .
+
+        export img=$(docker images ${app_name}:latest -q)
+
+        docker tag ${img} ${ECR_REGISTRY}/${app_name}:latest
+        docker tag ${img} ${ECR_REGISTRY}/${app_name}:${image_tag}
+
+        docker push ${ECR_REGISTRY}/${app_name}:latest
+        docker push ${ECR_REGISTRY}/${app_name}:${image_tag}
+
+        echo "${app_name} tagged ${image_tag} was pushed to ECR"

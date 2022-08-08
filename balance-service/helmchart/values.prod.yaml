@@ -1,0 +1,109 @@
+# Default values for helmchart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: 551678202612.dkr.ecr.us-east-2.amazonaws.com/balance-service
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: "regcred"
+    
+nameOverride: "balance-service"
+fullnameOverride: "balance-service"
+
+environments:
+  - name: "API_V1_STR"
+    value: "/api/v1/balance"
+  - name: "PROJECT_NAME"
+    value: "balance-service"
+  - name: "MONGODB_URL"
+    value: "10.12.152.14:27017"
+  - name: "MONGODB_NAME"
+    value: "balance"
+  - name: "AUTH_SERVICE_URL"
+    value: "http://auth-service.prod.svc.cluster.local:80/api/v1/user"
+  - name: "AUTH_SERVICE_URL_EXT"
+    value: "https://bullflag.com/api/v1/user"
+  - name: "AUTH_METHOD"
+    value: "/login/"
+  - name: "WALLET_SERVICE_URL"
+    value: "http://wallet-service.prod.svc.cluster.local:80/api/v1/currency"
+  - name: "MARKET_SERVICE_URL"
+    value: "http://market-service.prod.svc.cluster.local:80/api/v1/market"
+  - name: "ASSET_CONFIG_PATH"
+    value: "/app/config/assets.json"
+  - name: "MQ_HOST"
+    value: "10.12.152.18"
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+deployment:
+  livenessProbe:
+    path: '/api/v1/balance/health'
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_clear_headers "location";
+
+  hosts:
+#    - host: bullflag.com
+#      paths: ['/api/v1/balance']
+    - host: beta.bullflag.com
+      paths: ['/api/v1/balance']
+    - host: dev.bullflag.com
+      paths: ['/api/v1/balance']
+  tls:
+    - secretName: wildcard-bullflag-cert
+      hosts:
+        - bullflag.com
+        - "*.bullflag.com"
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -1,0 +1,26 @@
+version: "3.3"
+
+services:
+  mongo_db:
+    image: mongo
+    env_file:
+      - .env
+    volumes:
+      - mongo-data:/data/db
+      - './scripts/create_db_user_test.js:/docker-entrypoint-initdb.d/create_db_user_test.js'
+    ports:
+      - 27017:27017
+  backend:
+    image: 'auth-service:latest'
+    depends_on:
+      - mongo_db
+    env_file:
+      - .env
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+    - 8010:80
+
+volumes:
+  mongo-data:
